@@ -3,7 +3,7 @@
 
 This library properly authenticates with Xiaomi Mi Kettle and allows to read status and control the kettle via Bluetooth.
 
-I am not going to lie to you, it is slight ripoff from https://github.com/ratcashdev/mitemp that is ripoff from https://github.com/open-homeautomation/miflora .
+Based on https://github.com/ratcashdev/mitemp that is based on https://github.com/open-homeautomation/miflora .
 
 This library uses authentication that was reverse engineered by aprosvetova (https://github.com/aprosvetova/xiaomi-kettle) and then customized and verified by me
 
