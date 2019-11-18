@@ -10,6 +10,27 @@ This library uses authentication that was reverse engineered by aprosvetova (htt
 
 I am still not sure about ProductId and how many different ProductIds there are. This needs to be investigated further.
 
+## Demo
+European ProductId (mine) is 275
+
+Place your kettle near your Bluetooth device (for example RaspberryPi)
+
+Run:
+```bash
+hcitool lescan
+```
+You can see the Mac address near MiKettle
+
+Run demo by providing MAC address of your kettle and your ProductID (275 for EU).
+
+```bash
+pip3 install bluepy
+python3 setup.py install
+python3 demo.py connect AB:CD:EF:12:34:56 275
+```
+
+## Home assistant integration
+Use this custom component in your HA: https://github.com/drndos/mikettle-ha
 
 ## Functionality 
 Supports reading of these values:

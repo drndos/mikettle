@@ -4,6 +4,8 @@ Read data from Mi Kettle.
 
 import logging
 from bluepy.btle import UUID, Peripheral, DefaultDelegate
+from datetime import datetime, timedelta
+from threading import Lock
 
 _KEY1 = bytes([0x90, 0xCA, 0x85, 0xDE])
 _KEY2 = bytes([0x92, 0xAB, 0x54, 0xFA])
@@ -53,15 +55,23 @@ class MiKettle(object):
     A class to control mi kettle device.
     """
 
-    def __init__(self, mac, product_id, token=None):
+    def __init__(self, mac, product_id, cache_timeout=600, retries=3, token=None):
         """
         Initialize a Mi Kettle for the given MAC address.
         """
 
         self._mac = mac
         self._reversed_mac = MiKettle.reverseMac(mac)
+
+        self._cache = None
+        self._cache_timeout = timedelta(seconds=cache_timeout)
+        self._last_read = None
+        self.retries = retries
+        self.ble_timeout = 10
+        self.lock = Lock()
+
         self._p = Peripheral(mac)
-        self._p.setDelegate(HandleNotificationDelegate(self))
+        self._p.setDelegate(self)
         self._product_id = product_id
         # Generate token if not supplied
         if token is None:
@@ -70,6 +80,7 @@ class MiKettle(object):
 
     def name(self):
         """Return the name of the device."""
+        self.auth()
         name = self._p.readCharacteristic(_HANDLE_READ_NAME)
 
         if not name:
@@ -79,6 +90,7 @@ class MiKettle(object):
 
     def firmware_version(self):
         """Return the firmware version."""
+        self.auth()
         firmware_version = self._p.readCharacteristic(_HANDLE_READ_FIRMWARE_VERSION)
 
         if not firmware_version:
@@ -86,10 +98,56 @@ class MiKettle(object):
                             " from Mi Kettle %s" % (_HANDLE_READ_FIRMWARE_VERSION, self._mac))
         return ''.join(chr(n) for n in firmware_version)
 
-    @staticmethod
-    def parse_data(data):
-        """Parses the byte array returned by the sensor."""
+    def parameter_value(self, parameter, read_cached=True):
+        """Return a value of one of the monitored paramaters.
+        This method will try to retrieve the data from cache and only
+        request it by bluetooth if no cached value is stored or the cache is
+        expired.
+        This behaviour can be overwritten by the "read_cached" parameter.
+        """
+        # Use the lock to make sure the cache isn't updated multiple times
+        with self.lock:
+            if (read_cached is False) or \
+                    (self._last_read is None) or \
+                    (datetime.now() - self._cache_timeout > self._last_read):
+                self.fill_cache()
+            else:
+                _LOGGER.debug("Using cache (%s < %s)",
+                              datetime.now() - self._last_read,
+                              self._cache_timeout)
 
+        if self.cache_available():
+            return self._cache[parameter]
+        else:
+            raise Exception("Could not read data from MiKettle %s" % self._mac)
+
+    def fill_cache(self):
+        """Fill the cache with new data from the sensor."""
+        _LOGGER.debug('Filling cache with new sensor data.')
+        try:
+            _LOGGER.debug('Auth')
+            self.auth()
+            _LOGGER.debug('Subscribe')
+            self.subscribeToData()
+            _LOGGER.debug('Wait for data')
+            self._p.waitForNotifications(self.ble_timeout)
+            # If a sensor doesn't work, wait 5 minutes before retrying
+        except Exception:
+            self._last_read = datetime.now() - self._cache_timeout + \
+                timedelta(seconds=300)
+            return
+
+    def clear_cache(self):
+        """Manually force the cache to be cleared."""
+        self._cache = None
+        self._last_read = None
+
+    def cache_available(self):
+        """Check if there is data in the cache."""
+        return self._cache is not None
+
+    def _parse_data(self, data):
+        """Parses the byte array returned by the sensor."""
         res = dict()
         res[MI_ACTION] = MI_ACTION_MAP[int(data[0])]
         res[MI_MODE] = MI_MODE_MAP[int(data[1])]
@@ -188,24 +246,29 @@ class MiKettle(object):
         perm = MiKettle._cipherInit(key)
         return MiKettle._cipherCrypt(input, perm)
 
-
-class HandleNotificationDelegate(DefaultDelegate):
-    def __init__(self, kettle):
-        DefaultDelegate.__init__(self)
-        self._kettle = kettle
-
     def handleNotification(self, cHandle, data):
         if cHandle == _HANDLE_AUTH:
-            if(MiKettle.cipher(MiKettle.mixB(self._kettle._reversed_mac, self._kettle._product_id),
-                               MiKettle.cipher(MiKettle.mixA(self._kettle._reversed_mac,
-                                                             self._kettle._product_id),
-                                               data)) != self._kettle._token):
+            if(MiKettle.cipher(MiKettle.mixB(self._reversed_mac, self._product_id),
+                               MiKettle.cipher(MiKettle.mixA(self._reversed_mac,
+                                                             self._product_id),
+                                               data)) != self._token):
                 raise Exception("Authentication failed.")
         elif cHandle == _HANDLE_STATUS:
             _LOGGER.debug("Status update:")
-            print(MiKettle.parse_data(data))
+            if data is None:
+              return
+
+            _LOGGER.debug("Parse data: %s", data)
+            self._cache = self._parse_data(data)
+            _LOGGER.debug("data parsed %s", self._cache)
+
+            if self.cache_available():
+                self._last_read = datetime.now()
+            else:
+                # If a sensor doesn't work, wait 5 minutes before retrying
+                self._last_read = datetime.now() - self._cache_timeout + \
+                    timedelta(seconds=300)
         else:
-            print("Unknown notification from handle:")
-            print(cHandle)
-            print("Data:")
-            print(data.hex())
+            _LOGGER.error("Unknown notification from handle: %s with Data: %s", cHandle, data.hex())
+
+

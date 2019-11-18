@@ -5,9 +5,19 @@ import argparse
 import re
 
 import sys
+import logging
+
+import time
 
 from mikettle.mikettle import MiKettle
-
+from mikettle.mikettle import (
+  MI_ACTION,
+  MI_MODE,
+  MI_SET_TEMPERATURE,
+  MI_CURRENT_TEMPERATURE,
+  MI_KW_TYPE,
+  MI_KW_TIME
+)
 
 def valid_mikettle_mac(mac, pat=re.compile(r"[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}")):
     """Check for valid mac adresses."""
@@ -26,16 +36,21 @@ def valid_product_id(product_id):
 
 def connect(args):
     """Connect to Mi Kettle."""
+
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.DEBUG)
+
     kettle = MiKettle(args.mac, args.product_id)
     print("Authenticating")
-    kettle.auth()
     print("Getting data from mi Kettle")
     print("FW: {}".format(kettle.firmware_version()))
     print("Name: {}".format(kettle.name()))
-    print("Subscribing to data and receiving it once")
-    kettle.subscribeToData()
-    kettle._p.waitForNotifications(10.0)
 
+    try:
+      print("Current temperature: {}".format(kettle.parameter_value(MI_CURRENT_TEMPERATURE)))
+    except Exception as error:
+      print("Read failed")
+      print(error)
 
 def main():
     """Main function.
