@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='mikettle',
-    version='0.0.1',
+    version='0.0.2',
     description='This library properly authenticates with Xiaomi Mi Kettle and allows to read status and control the kettle via Bluetooth.',
     url='https://github.com/drndos/mikettle',
     author='drndos',

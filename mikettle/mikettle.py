@@ -59,6 +59,7 @@ class MiKettle(object):
         """
         Initialize a Mi Kettle for the given MAC address.
         """
+        _LOGGER.debug('Init Mikettle with mac %s and pid %s', mac, product_id)
 
         self._mac = mac
         self._reversed_mac = MiKettle.reverseMac(mac)
@@ -70,16 +71,19 @@ class MiKettle(object):
         self.ble_timeout = 10
         self.lock = Lock()
 
-        self._p = Peripheral(mac)
-        self._p.setDelegate(self)
         self._product_id = product_id
         # Generate token if not supplied
         if token is None:
             token = MiKettle.generateRandomToken()
         self._token = token
 
+    def connect(self):
+        self._p = Peripheral(self._mac)
+        self._p.setDelegate(self)
+
     def name(self):
         """Return the name of the device."""
+        self.connect()
         self.auth()
         name = self._p.readCharacteristic(_HANDLE_READ_NAME)
 
@@ -90,6 +94,7 @@ class MiKettle(object):
 
     def firmware_version(self):
         """Return the firmware version."""
+        self.connect()
         self.auth()
         firmware_version = self._p.readCharacteristic(_HANDLE_READ_FIRMWARE_VERSION)
 
@@ -125,6 +130,8 @@ class MiKettle(object):
         """Fill the cache with new data from the sensor."""
         _LOGGER.debug('Filling cache with new sensor data.')
         try:
+            _LOGGER.debug('Connect')
+            self.connect()
             _LOGGER.debug('Auth')
             self.auth()
             _LOGGER.debug('Subscribe')
@@ -132,7 +139,8 @@ class MiKettle(object):
             _LOGGER.debug('Wait for data')
             self._p.waitForNotifications(self.ble_timeout)
             # If a sensor doesn't work, wait 5 minutes before retrying
-        except Exception:
+        except Exception as error:
+            _LOGGER.debug('Error %s', error)
             self._last_read = datetime.now() - self._cache_timeout + \
                 timedelta(seconds=300)
             return
