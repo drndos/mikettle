@@ -29,9 +29,6 @@ python3 setup.py install
 python3 demo.py connect AB:CD:EF:12:34:56 275
 ```
 
-## Home assistant integration
-Use this custom component in your HA: https://github.com/drndos/mikettle-ha
-
 ## Functionality 
 Supports reading of these values:
 - Current action
@@ -47,7 +44,7 @@ Supports controlling of these values:
 To use this library you will need a Bluetooth Low Energy dongle attached to your computer or Raspberry PI. You will also need a
 Xiaomi Mi Kettle. 
 
-To use with home-assistant please refer to documentation over at home assitant (TBD)
+To use with home-assistant please refer to documentation over at home assitant custom component https://github.com/drndos/mikettle-ha
 
 ## Backend
 Backend is using bluepy library. Please refer to installation instructions - https://github.com/IanHarvey/bluepy
