@@ -55,7 +55,7 @@ class MiKettle(object):
     A class to control mi kettle device.
     """
 
-    def __init__(self, mac, product_id, cache_timeout=600, retries=3, token=None):
+    def __init__(self, mac, product_id, cache_timeout=600, retries=3, iface=None, token=None):
         """
         Initialize a Mi Kettle for the given MAC address.
         """
@@ -72,13 +72,14 @@ class MiKettle(object):
         self.lock = Lock()
 
         self._product_id = product_id
+        self._iface = iface
         # Generate token if not supplied
         if token is None:
             token = MiKettle.generateRandomToken()
         self._token = token
 
     def connect(self):
-        self._p = Peripheral(self._mac)
+        self._p = Peripheral(deviceAddr=self._mac, iface=self._iface)
         self._p.setDelegate(self)
 
     def name(self):
